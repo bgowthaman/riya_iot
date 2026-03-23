@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Sliding Switch</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .grid-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 20px; }
+        
+        /* ஸ்லைடிங் சுவிட்ச் வடிவமைப்பு */
+        .switch-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: center; width: 140px; }
+        h3 { margin-bottom: 15px; font-size: 1.1rem; color: #333; }
+
+        .switch { position: relative; display: inline-block; width: 80px; height: 34px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; z-index: 2; }
+
+        /* ஆன்/ஆஃப் எழுத்துக்கள் பட்டனுக்கு உள்ளே */
+        .slider:after { content: 'OFF'; color: white; display: block; position: absolute; transform: translate(-50%,-50%); top: 50%; left: 65%; font-size: 10px; font-weight: bold; }
+
+        input:checked + .slider { background-color: #2ecc71; }
+        input:checked + .slider:before { transform: translateX(46px); }
+        input:checked + .slider:after { content: 'ON'; left: 35%; }
+
+        input:focus + .slider { box-shadow: 0 0 1px #2ecc71; }
+    </style>
+</head>
+<body>
+
+    <h2>Home Control Hub</h2>
+    
+    <div class="grid-container">
+        <div class="switch-card">
+            <h3>Light 1</h3>
+            <label class="switch">
+                <input type="checkbox" id="check-r1" onclick="toggleRelay('r1')">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="switch-card">
+            <h3>Fan 1</h3>
+            <label class="switch">
+                <input type="checkbox" id="check-r2" onclick="toggleRelay('r2')">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="switch-card">
+            <h3>Light 2</h3>
+            <label class="switch">
+                <input type="checkbox" id="check-r3" onclick="toggleRelay('r3')">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="switch-card">
+            <h3>Pump</h3>
+            <label class="switch">
+                <input type="checkbox" id="check-r4" onclick="toggleRelay('r4')">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCCox9FtxIlhCSkPfCY0WP6Hiu89WBUZK0",
+  authDomain: "mqtt-b78f9.firebaseapp.com",
+  databaseURL: "https://mqtt-b78f9-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "mqtt-b78f9",
+  storageBucket: "mqtt-b78f9.firebasestorage.app",
+  messagingSenderId: "95105006468",
+  appId: "1:95105006468:web:7438bec593ea3eb14dbbd1"
+};
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // 1. Firebase-லிருந்து நிலையை வாசித்தல் (Read)
+    const relayList = ['r1', 'r2', 'r3', 'r4'];
+    
+    onValue(ref(db, 'relays'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            relayList.forEach(id => {
+                const checkbox = document.getElementById(`check-${id}`);
+                // Boolean (true/false) மதிப்பிற்கு ஏற்ப செக் பாக்ஸை மாற்றுதல்
+                checkbox.checked = data[id]; 
+            });
+        }
+    });
+
+    // 2. சுவிட்சை மாற்றும்போது Firebase-ல் அப்டேட் செய்தல் (Write)
+    window.toggleRelay = function(id) {
+        const isChecked = document.getElementById(`check-${id}`).checked;
+        set(ref(db, `relays/${id}`), isChecked);
+    };
+</script>
+
+</body>
+</html>
