@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JESSY Smart Home - Dashboard v4.0.0</title>
+    
+    <script src=".jessy_sys/paho-mqtt.min.js"></script>
+	
+    <style>
+      /* --- [BLOCK C0: CSS STYLES] START --- */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; margin: 0; }
+        #main-dashboard, #home-selection-screen { display: none; width: 100%; max-width: 900px; }
+        #auth-screen { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; }
+        .auth-box { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 320px; text-align: center; }
+        .auth-box input { width: 90%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .auth-box button { width: 100%; padding: 12px; background: #2ecc71; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; }
+        .auth-box button:hover { background: #27ae60; }
+        
+        /* [NEW] Home Selection Styles */
+        .home-card-btn { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; border-radius: 15px; margin-bottom: 15px; cursor: pointer; text-align: center; font-size: 1.3rem; font-weight: bold; transition: 0.3s; box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3); border: none; width: 100%; display: block; }
+        .home-card-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4); }
+        .back-btn { background: #95a5a6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 20px; transition: 0.3s; display: inline-flex; align-items: center; }
+        .back-btn:hover { background: #7f8c8d; }
+
+        .home-section { background: white; border-radius: 15px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: 0.3s; }
+        .home-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
+        .home-title { color: #2c3e50; margin: 0; text-transform: uppercase; font-size: 1.5rem; }
+        .hub-badge { background: #e8f8f5; color: #1abc9c; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; transition: 0.3s; }
+        .hub-error { background: #fdedec; color: #e74c3c; box-shadow: 0 0 10px rgba(231, 76, 60, 0.2); }
+        .hub-local { background: #fef9e7; color: #f39c12; box-shadow: 0 0 10px rgba(243, 156, 18, 0.2); }
+        .room-title { color: #7f8c8d; font-size: 1.1rem; margin-bottom: 10px; text-transform: capitalize; border-left: 4px solid #3498db; padding-left: 10px; }
+        .device-group { background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 1px solid #eee; position: relative; transition: 0.3s; }
+        .device-header { display: flex; align-items: center; margin-bottom: 15px; }
+        .device-status-dot { height: 12px; width: 12px; border-radius: 50%; margin-right: 10px; background-color: #bbb; transition: 0.3s; }
+        .dev-online { background-color: #2ecc71; box-shadow: 0 0 8px rgba(46, 204, 113, 0.6); }
+        .dev-offline { background-color: #e74c3c; box-shadow: 0 0 8px rgba(231, 76, 60, 0.6); }
+        .device-name { font-size: 0.95rem; color: #34495e; font-weight: bold; flex-grow: 1; }
+        .status-badge { background: #e74c3c; color: white; padding: 4px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: bold; display: none; }
+        .not-found-badge { background: #fdedec; color: #e74c3c; padding: 10px; border-radius: 8px; font-weight: bold; text-align: center; grid-column: 1 / -1; border: 1px dashed #e74c3c; }
+        .is-locked { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
+        .processing { opacity: 0.6; pointer-events: none; cursor: wait; }
+        .device-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; }
+        .switch-card { background: white; padding: 15px 10px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; transition: 0.2s; }
+        .switch-card h3 { margin: 0 0 10px 0; font-size: 0.85rem; color: #555; text-transform: uppercase; }
+        .switch { position: relative; display: inline-block; width: 70px; height: 30px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e0e0e0; transition: 0.4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 4px; bottom: 4px; background-color: white; transition: 0.4s; border-radius: 50%; z-index: 2; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .slider { background-color: #2ecc71; }
+        input:checked + .slider:before { transform: translateX(40px); }
+        .slider:after { content: 'OFF'; color: #777; position: absolute; right: 8px; top: 8px; font-size: 10px; font-weight: bold; transition: 0.3s; }
+        input:checked + .slider:after { content: 'ON'; color: white; left: 8px; }
+        .logout-btn { margin-top: 20px; padding: 12px; border: 2px solid #e74c3c; color: #e74c3c; background: transparent; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; transition: 0.3s; }
+        .logout-btn:hover { background: #e74c3c; color: white; }
+        /* --- [BLOCK C0: CSS STYLES] END --- */
+    </style>
+</head>
+<body>
+<div id="auth-screen">
+        <div class="auth-box">
+            <h2 style="color: #2c3e50; margin-bottom: 20px;">JESSY Login</h2>
+            <input type="email" id="email" placeholder="Email Address" autocomplete="email">
+            <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+            <button id="auth-btn">Secure Login</button>
+            <div id="auth-error" style="color: #e74c3c; margin-top: 10px; font-size: 0.9rem; display: none; font-weight: bold;"></div>
+        </div>
+    </div>
+
+    <div id="mpin-screen" style="display: none;">
+        <div class="auth-box">
+            <h2 style="color: #2c3e50; margin-bottom: 20px;">Enter MPIN</h2>
+            <input type="password" id="login-mpin" maxlength="4" placeholder="****" style="text-align:center; font-size: 24px; letter-spacing: 15px;">
+            <button onclick="verifyMpin()">Unlock Dashboard</button>
+            <button onclick="showEmailLogin()" style="background:transparent; color:#3498db; margin-top:10px; box-shadow:none;">Use Email Login</button>
+            <div id="mpin-error" style="color: #e74c3c; margin-top: 10px; font-size: 0.9rem; display: none; font-weight: bold;">Invalid MPIN!</div>
+        </div>
+    </div>
+
+    <div id="home-selection-screen" style="display: none;">
+        <h2 style="text-align: center; color: #2c3e50; margin-bottom: 30px;">🏠 Select Your Home</h2>
+        <div id="home-list-container"></div>
+        <button class="logout-btn" onclick="window.auth.signOut()">Logout / Sign Out</button>
+    </div>
+
+    <div id="main-dashboard">
+        <div style="display: flex; justify-content: space-between; width: 100%; max-width: 900px; margin-bottom: 20px;">
+            <button class="back-btn" style="margin-bottom:0;" onclick="goBackToSelection()">🔙 Back</button>
+            <button class="back-btn" style="margin-bottom:0; background:#f39c12;" onclick="setupMpin()">🔐 Set MPIN</button>
+        </div>
+        <div id="homes-container"></div>
+        <button class="logout-btn" onclick="window.auth.signOut()">Logout / Sign Out</button>
+    </div>
+    
+	<script type="module">
+// --- [BLOCK C2: FIREBASE INIT (MOBILE CLOUD FIX)] START ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, get, update, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCCox9FtxIlhCSkPfCY0WP6Hiu89WBUZK0",
+        authDomain: "mqtt-b78f9.firebaseapp.com",
+        databaseURL: "https://mqtt-b78f9-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "mqtt-b78f9",
+        appId: "1:95105006468:web:7438bec593ea3eb14dbbd1"
+    };
+	
+    const app = initializeApp(firebaseConfig);
+    window.db = getDatabase(app);
+    window.auth = getAuth(app);
+    const db = window.db; 
+
+    const errorDiv = document.getElementById('auth-error');
+    console.log("✅ Firebase loaded perfectly for Mobile Cloud.");
+// --- [BLOCK C2: FIREBASE INIT (MOBILE CLOUD FIX)] END ---
+
+
+// --- [BLOCK C3: 3-STATE CONNECTION LOGIC (DYNAMIC HOST & SILENT RETRY)] START ---
+    window.localMqttClient = null;
+    window.localMqttState = "disconnected"; 
+    window.systemHealth = { hubs: {}, devices: {} };
+    window.connectionWatchdog = null; 
+    window.hasFailedLocalOnce = false; 
+    
+    window.verifiedLocalHubId = localStorage.getItem('jessy_local_hub_id') || null;
+
+    function refreshAllDevicesUI() {
+        Object.keys(window.systemHealth.devices).forEach(devID => { updateDeviceUI(devID); });
+    }
+
+    function setHubState(hubId, mode, badgeClass, badgeText, isLocked) {
+        const h = window.systemHealth.hubs[hubId];
+        if (!h) return;
+        h.currentMode = mode;
+        const badge = document.getElementById(h.badgeId);
+        const homeDiv = document.getElementById(h.homeDivId);
+        
+        if (badge) { badge.className = `hub-badge ${badgeClass}`; badge.innerText = badgeText; }
+        if (homeDiv) {
+            if (isLocked) homeDiv.classList.add('is-locked');
+            else homeDiv.classList.remove('is-locked');
+        }
+    }
+
+    async function discoverLocalHub() {
+        try {
+            let host = window.location.hostname;
+            if (!host || host === "" || host === "localhost") host = "jessy.local";
+            
+            let res = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(2000) });
+            if (res.ok) {
+                let data = await res.json();
+                // 🛠️ [JSON STRUCTURE FIX]: Handle v4.0 Nested JSON
+                let homesList = data.cloud_passport_authority?.["2_smart_home_passports"] || data;
+                let firstHome = Object.values(homesList)[0];
+                
+                if (firstHome && (firstHome.linked_hub || firstHome.hub_id)) {
+                    window.verifiedLocalHubId = firstHome.linked_hub || firstHome.hub_id;
+                    localStorage.setItem('jessy_local_hub_id', window.verifiedLocalHubId);
+                    return;
+                }
+            }
+        } catch(e) {}
+        window.verifiedLocalHubId = null; 
+    }
+
+    function connectLocalMqtt() {
+        if (window.localMqttState !== "disconnected") return;
+        window.localMqttState = "connecting";
+
+        let mqttHost = window.location.hostname;
+        if (!mqttHost || mqttHost === "" || mqttHost === "localhost") mqttHost = "jessy.local";
+
+        console.log("Attempting Local MQTT Connection to -> ws://" + mqttHost + ":9001/mqtt");    
+        
+        window.connectionWatchdog = setTimeout(() => {
+                if (window.localMqttState === "connecting") {
+                    console.warn("Watchdog: Local MQTT Connection Timeout!");
+                    window.localMqttState = "disconnected";
+                    window.hasFailedLocalOnce = true;
+                    if (window.localMqttClient) {
+                        try { window.localMqttClient.disconnect(); } catch(e){}
+                    }
+                }
+        }, 8000);
+            
+        window.localMqttClient = new Paho.Client(mqttHost, 9001, "WebApp_" + Math.floor(Math.random() * 10000));
+
+        window.localMqttClient.connect({
+            timeout: 5, 
+            useSSL: false,
+            userName: "jessy_admin",           
+            password: "JESSY_SECURE_2026",    
+            onSuccess: () => { 
+                console.log("✅ Local MQTT Connected Successfully with Auth!");
+                clearTimeout(window.connectionWatchdog); 
+                window.localMqttState = "connected"; 
+                window.hasFailedLocalOnce = false; 
+                window.localMqttClient.subscribe("app/fb/#");
+            },
+            onFailure: (err) => { 
+                console.error("❌ Local MQTT Connection/Auth Failed: ", err.errorMessage);
+                clearTimeout(window.connectionWatchdog); 
+                window.localMqttState = "disconnected"; 
+                window.hasFailedLocalOnce = true; 
+            }
+        });
+        
+       // --- MQTT MESSAGE RECEIVED (WITH ZERO-TRUST FEEDBACK VERIFICATION) ---
+        window.localMqttClient.onMessageArrived = async function(message) {
+            let topic = message.destinationName;
+            let payload = message.payloadString;
+            
+            if(topic.startsWith("app/fb/")) {
+                let parts = topic.split("/");
+                let devID = parts[2];
+                let relayID = parts[3];
+                
+                let payloadParts = payload.split("|");
+                if (payloadParts.length < 3) return; // பழைய Format ஆக இருந்தால் தவிர்த்துவிடு
+                
+                let valStr = payloadParts[0];
+                let reqId = payloadParts[1];
+                let receivedSignature = payloadParts[2];
+                let state = (valStr === "1");
+
+                // 1. 🔍 Hub Passport-ஐ Cache-ல் இருந்து எடுத்தல்
+                let hubPassport = "UNKNOWN_HUB_PASS";
+                try {
+                    let host = window.location.hostname;
+                    if (!host || host === "" || host === "localhost") host = "jessy.local";
+                    let res = await fetch(`http://${host}:8080/1_passport_cache.json`);
+                    if (res.ok) {
+                        let data = await res.json();
+                        let devicesNode = data.cloud_passport_authority?.["3_device_passports"] || {};
+                        let hubID = window.verifiedLocalHubId;
+                        if (devicesNode[hubID]) {
+                            hubPassport = devicesNode[hubID].passport_id;
+                        }
+                    }
+                } catch(e) { console.log("Failed to fetch Hub Passport for verification."); }
+
+                // 2. 🔐 Expected Signature-ஐ உருவாக்குதல்
+                let m = 0;
+                for(let i = 0; i < hubPassport.length; i++) {
+                    m = (m * 31 + hubPassport.charCodeAt(i)) % 1000000;
+                }
+                const r = parseInt(reqId.slice(-8)) || 0;
+                const expectedSignature = ((m * 9301 + r * 49297) % 233280).toString(16);
+
+                // 3. 🛡️ Verification & UI Update
+                if (receivedSignature === expectedSignature) {
+                    // உண்மையான ஹப் அனுப்பிய ஃபீட்பேக் (Genuine Hub)
+                    const input = document.getElementById(`input-${devID}-${relayID}`);
+                    const card = document.getElementById(`card-${devID}-${relayID}`);
+                    if(input) input.checked = state;
+                    if(card) card.classList.remove('processing');
+                } else {
+                    console.warn(`🚨 FAKE FEEDBACK BLOCKED! Signature Mismatch for ${devID}/${relayID}`);
+                    // UI மாறாது, லோடிங் அனிமேஷனும் நிற்காது!
+                }
+            }
+        };
+		
+    }
+    
+    setInterval(async () => {
+        await discoverLocalHub();
+
+        const now = new Date().getTime();
+        const isBrowserOffline = !navigator.onLine; 
+        let isOnLocalWifi = (window.verifiedLocalHubId !== null);
+
+        if (isOnLocalWifi && window.localMqttState === "disconnected") {
+            connectLocalMqtt();
+        } else if (!isOnLocalWifi && window.localMqttState === "connected" && window.localMqttClient) {
+            window.localMqttClient.disconnect();
+            window.localMqttState = "disconnected";
+            window.hasFailedLocalOnce = false;
+        }
+
+        Object.keys(window.systemHealth.hubs).forEach(hubId => {
+            const hub = window.systemHealth.hubs[hubId];
+            let isHubOffline = false;
+
+            if (isBrowserOffline || !hub.last_heartbeat) {
+                isHubOffline = true; 
+            } else {
+                const hbTime = new Date(hub.last_heartbeat.replace(/-/g, '/')).getTime();
+                if ((now - hbTime) / 1000 > 65) isHubOffline = true;
+            }
+            hub.isCloudOffline = isHubOffline;
+
+            if (window.verifiedLocalHubId === hubId) {
+                if (window.localMqttState === "connected") {
+                    setHubState(hubId, "local", "hub-local", "Hub: LOCAL (Ultra-Fast)", false);
+                    if (window.localMqttClient) {
+                        try {
+                            let pingMsg = new Paho.Message("1");
+                            pingMsg.destinationName = `app/local_ping/${hubId}`;
+                            pingMsg.qos = 0; pingMsg.retained = false;
+                            window.localMqttClient.send(pingMsg);
+                        } catch(e) {}
+                    }
+                } else if (window.localMqttState === "connecting" && !window.hasFailedLocalOnce) {
+                    setHubState(hubId, "local_connecting", "hub-local", "Checking Local WiFi...", true);
+                } else {
+                    setHubState(hubId, "disconnected", "hub-error", "Hub: OFFLINE (Local Failed)", true);
+                }
+            } else if (isHubOffline) {
+                setHubState(hubId, "disconnected", "hub-error", "Hub: OFFLINE", false); 
+            } else {
+                setHubState(hubId, "cloud", "", "Hub: Active (Cloud)", false);
+            }
+        });
+        
+        refreshAllDevicesUI();
+    }, 3000);
+// --- [BLOCK C3: 3-STATE CONNECTION LOGIC (DYNAMIC HOST & SILENT RETRY)] END ---
+
+// --- [BLOCK C4: DEVICE UI UPDATER (v4.0 LOGIC)] START ---
+    function updateDeviceUI(devID) {
+        const devData = window.systemHealth.devices[devID];
+        if (!devData || !devData.latestStat) return;
+        
+        const stat = devData.latestStat;
+        const hub = window.systemHealth.hubs[devData.hubId]; 
+        const hubMode = hub ? hub.currentMode : "cloud";
+
+        const group = document.getElementById(`group-${devID}`);
+        const dot = document.getElementById(`dot-${devID}`);
+        const lock = document.getElementById(`lock-${devID}`);
+        const inputs = group ? group.querySelectorAll('input[type="checkbox"]') : [];
+
+        if (hubMode === "disconnected" || hubMode === "local_connecting") {
+            if(dot) dot.className = "device-status-dot dev-offline";
+            if(group) group.classList.add('is-locked');
+            if(lock) { lock.innerText = "HUB UNREACHABLE"; lock.style.display = 'inline-block'; lock.style.backgroundColor = '#7f8c8d'; }
+            inputs.forEach(inp => inp.disabled = true);
+            return;
+        }
+
+        const isOffline = (stat.connection_state === "offline");
+
+        if (isOffline) {
+            if(dot) dot.className = "device-status-dot dev-offline";
+            if(group) group.classList.add('is-locked');
+            if(lock) { lock.innerText = "OFFLINE"; lock.style.display = 'inline-block'; lock.style.backgroundColor = '#7f8c8d'; }
+            inputs.forEach(inp => inp.disabled = true);
+        } else {
+            if(dot) dot.className = "device-status-dot dev-online";
+            
+            // [v4.0 UPDATE]: master_lock & user_lock checking
+            if (stat.master_lock === 1 || stat.user_lock === 1) {
+                if(group) group.classList.add('is-locked');
+                if(lock) { lock.innerText = stat.master_lock === 1 ? "MASTER LOCKED" : "USER LOCKED"; lock.style.display = 'inline-block'; lock.style.backgroundColor = '#e74c3c'; }
+                inputs.forEach(inp => inp.disabled = true);
+            } else {
+                if(group) group.classList.remove('is-locked');
+                if(lock) { lock.innerText = "ONLINE"; lock.style.display = 'inline-block'; lock.style.backgroundColor = '#2ecc71'; }
+                inputs.forEach(inp => inp.disabled = false);
+            }
+        }
+    }
+// --- [BLOCK C4: DEVICE UI UPDATER] END ---
+
+
+// --- [BLOCK C5: AUTHENTICATION & MPIN FIX] START ---
+    window.showEmailLogin = function() {
+        document.getElementById('mpin-screen').style.display = 'none';
+        document.getElementById('auth-screen').style.display = 'flex';
+    };
+
+    window.setupMpin = function() {
+        const cacheStr = localStorage.getItem('jessy_cache_homes');
+        if (!cacheStr || Object.keys(JSON.parse(cacheStr)).length === 0) {
+            alert("⚠️ Please wait for your homes to fully load from Cloud before setting an MPIN!");
+            return;
+        }
+
+        const pin = prompt("Enter a 4-digit MPIN for Offline Access:");
+        if (pin && pin.length === 4 && !isNaN(pin)) {
+            localStorage.setItem('jessy_mpin', pin);
+            alert("✅ MPIN saved successfully! You can now access the app offline.");
+        } else if (pin) {
+            alert("❌ Invalid MPIN. Must be exactly 4 digits.");
+        }
+    };
+
+    window.verifyMpin = function() {
+        const input = document.getElementById('login-mpin').value;
+        const saved = localStorage.getItem('jessy_mpin');
+        const errorDivMpin = document.getElementById('mpin-error');
+
+        if (input === saved) {
+            errorDivMpin.style.display = 'none';
+            document.getElementById('mpin-screen').style.display = 'none';
+            
+            const cachedHomes = localStorage.getItem('jessy_cache_homes');
+            if (cachedHomes && Object.keys(JSON.parse(cachedHomes)).length > 0) {
+                document.getElementById('home-selection-screen').style.display = 'block';
+                window.renderHomeSelection(JSON.parse(cachedHomes)); 
+            } else {
+                alert("⚠️ Critical Error: Cache corrupted or missing. Please connect to internet and login via Email once.");
+                showEmailLogin();
+            }
+        } else {
+            errorDivMpin.style.display = 'block';
+        }
+    };
+
+    if (localStorage.getItem('jessy_mpin')) {
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('mpin-screen').style.display = 'flex';
+    } else if (!navigator.onLine) {
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('homes-container').innerHTML = "<h3 style='text-align:center; color:#e74c3c; margin-top:50px;'>📴 App is Offline.<br><br>No MPIN found. Please connect to internet to login.</h3>";
+        document.getElementById('main-dashboard').style.display = 'block';
+    }
+
+    document.getElementById('auth-btn').onclick = () => {
+        if (!signInWithEmailAndPassword) {
+            alert("Offline Mode: Please connect to the internet for Email Login.");
+            return;
+        }
+        const errorDiv = document.getElementById('auth-error');
+        errorDiv.style.display = 'none';
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('password').value;
+        if(!email || !pass) return;
+        signInWithEmailAndPassword(window.auth, email, pass).catch(err => {
+            errorDiv.innerText = "Login Failed: " + err.message; errorDiv.style.display = 'block';
+        });
+    };
+
+    if (typeof onAuthStateChanged !== 'undefined' && onAuthStateChanged !== null) {
+        onAuthStateChanged(window.auth, async (user) => {
+            if (user) {
+                try {
+                    if (document.getElementById('mpin-screen').style.display === 'flex') return;
+                    if (!navigator.onLine) { console.warn("Offline: Skipping permission check."); return; }
+
+                    // [v4.0 UPDATE]: Cloud Passport Authority Check
+                    const userSnap = await get(ref(db, `cloud_passport_authority/1_user_passports/${user.uid}`));
+                    const uData = userSnap.val();
+                    
+                    if (!uData || uData.master_lock === 1 || uData.user_lock === 1) { 
+                        alert("🚫 Access Denied or Blocked by Admin!"); 
+                        window.auth.signOut(); 
+                        return; 
+                    }
+                    
+                    localStorage.setItem("jessy_username", uData.short_name || uData.name || user.email);
+                    
+					// பயனர் தரவுகள் Firebase-ல் இருந்து கிடைத்தவுடன் இதைச் சேர்க்கவும்:
+					localStorage.setItem('jessy_user_passport', uData.passport_id);
+
+                    document.getElementById('auth-screen').style.display = 'none';
+                    document.getElementById('main-dashboard').style.display = 'none';
+                    document.getElementById('home-selection-screen').style.display = 'block';
+                    
+                    loadHomeSelection(user.uid, uData); 
+                } catch(e) { console.warn("Firebase Auth Data read bypassed.", e); }
+            } else {
+                if (!localStorage.getItem('jessy_mpin')) {
+                    document.getElementById('auth-screen').style.display = 'flex';
+                    document.getElementById('home-selection-screen').style.display = 'none';
+                    document.getElementById('main-dashboard').style.display = 'none';
+                }
+                document.getElementById('homes-container').innerHTML = '';
+                document.getElementById('home-list-container').innerHTML = '';
+                document.getElementById('password').value = '';
+                if (window.localMqttClient) { window.localMqttClient.disconnect(); window.localMqttState = "disconnected"; }
+            }
+        });
+    }
+// --- [BLOCK C5: AUTHENTICATION & MPIN FIX] END ---
+
+// --- [BLOCK C6: BUILD DASHBOARD & SELECTION (v4.0 LOGIC)] START ---
+    async function loadHomeSelection(uid, uData) {
+        const container = document.getElementById('home-list-container');
+        if(container.innerHTML === "") container.innerHTML = "<h3 style='text-align:center;'>Searching for Hubs...</h3>";
+        
+        let host = window.location.hostname;
+        if (!host || host === "" || host === "localhost") host = "jessy.local";
+        
+        let completeCache = {}; 
+        let localHubEmpty = false;
+
+        // 1. 🏠 [LOCAL FIRST]: முதலில் லோக்கல் நெட்வொர்க்கில் தேடுதல்
+        try {
+            let hubResponse = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
+            if (hubResponse.ok) {
+                let data = await hubResponse.json();
+                let homesList = data.cloud_passport_authority?.["2_smart_home_passports"] || data;
+                
+                if (!homesList || Object.keys(homesList).length === 0) {
+                    localHubEmpty = true;
+                    container.innerHTML = `
+                        <div style="background: #fef9e7; color: #f39c12; padding: 15px; border-radius: 10px; border: 2px dashed #f39c12; margin-bottom: 20px; text-align: center;">
+                            <h3 style="margin-top:0;">⚙️ Unconfigured Local Hub Detected!</h3>
+                            <p style="font-size:0.9rem;">This Hub is running in <b>OEM Mode</b>. Use Cloud App to configure.</p>
+                        </div>
+                    `;
+                } else {
+                    for (let homeID in homesList) {
+                        completeCache[homeID] = { label: homesList[homeID].home_name || homeID, data: homesList[homeID], source: "LOCAL" };
+                        window.verifiedLocalHubId = homesList[homeID].linked_hub || homesList[homeID].hub_id; 
+                    }
+                    localStorage.setItem('jessy_local_hub_id', window.verifiedLocalHubId || "");
+
+                    // Local Registry Sync
+                    try {
+                        let regResponse = await fetch(`http://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
+                        if (regResponse.ok) {
+                            localStorage.setItem('jessy_local_registry', JSON.stringify(await regResponse.json()));
+                        }
+                    } catch(e) {}
+                }
+            }
+        } catch (err) {
+            console.log("⚠️ Local Hub not reachable. Relying on Cloud.");
+        }
+
+        // 2. ☁️ [CLOUD SYNC]: ஆன்லைனில் இருந்தால், கிளவுட் வீடுகளையும் சேர்த்துக்கொள்ளுதல்
+        if (navigator.onLine && typeof get !== 'undefined' && get && window.auth && window.auth.currentUser) {
+            try {
+                // 🛠️ [NEW FIX]: uData இல்லையென்றால் கிளவுடில் இருந்து நாமே எடுத்துக்கொள்வோம்
+                if (!uData) {
+                    const userSnap = await get(ref(window.db, `cloud_passport_authority/1_user_passports/${window.auth.currentUser.uid}`));
+                    uData = userSnap.val();
+                }
+                
+                if (uData) {
+                    const allowedHomes = (uData.owned_homes || []).concat(uData.guest_homes || []);
+                    for (const homeID of allowedHomes) {
+                        if (!completeCache[homeID]) { // லோக்கலில் இல்லாத வீடுகளை மட்டும் எடு
+                            const homeSnap = await get(ref(window.db, `cloud_passport_authority/2_smart_home_passports/${homeID}`));
+                            if(homeSnap.exists()) {
+                                completeCache[homeID] = { label: homeSnap.val().home_name || homeID, data: homeSnap.val(), source: "CLOUD" };
+                            }
+                        }
+                    }
+                }
+            } catch(e) { console.error("Cloud sync failed", e); }
+        }
+
+        // 3. 💾 [RENDER RESULTS]
+        let homeKeys = Object.keys(completeCache);
+        
+        if (homeKeys.length > 0) {
+            localStorage.setItem('jessy_cache_homes', JSON.stringify(completeCache));
+            if (homeKeys.length === 1 && !localHubEmpty) {
+                window.openSpecificHome(homeKeys[0]); 
+            } else {
+                window.renderHomeSelection(completeCache); 
+            }
+        } else {
+            const cachedStr = localStorage.getItem('jessy_cache_homes');
+            if (cachedStr && Object.keys(JSON.parse(cachedStr)).length > 0) {
+                window.renderHomeSelection(JSON.parse(cachedStr));
+            } else if (!localHubEmpty) {
+                container.innerHTML += "<h3 style='text-align:center; color:#e74c3c;'>No Homes Found. Please check internet connection.</h3>";
+            }
+        }
+    }
+	
+    window.renderHomeSelection = function(cachedHomes) {
+        const container = document.getElementById('home-list-container');
+        const existingWarning = container.innerHTML.includes("Unconfigured") ? container.innerHTML.split("</div>")[0] + "</div>" : "";
+        
+        let listHTML = existingWarning;
+        for (const homeID in cachedHomes) {
+            const label = cachedHomes[homeID].label;
+            listHTML += `<button class="home-card-btn" onclick="openSpecificHome('${homeID}')">🏠 ${label}</button>`;
+        }
+        if(listHTML === existingWarning) { 
+            container.innerHTML = existingWarning + "<h3 style='text-align:center;'>No configured homes available.</h3>"; 
+            return; 
+        }
+        container.innerHTML = listHTML;
+    }
+
+    window.openSpecificHome = async function(selectedHomeID) {
+        document.getElementById('home-selection-screen').style.display = 'none';
+        document.getElementById('main-dashboard').style.display = 'block';
+        
+        const cachedStr = localStorage.getItem('jessy_cache_homes');
+        if (cachedStr) {
+            const cachedHomes = JSON.parse(cachedStr);
+            await buildDashboardFromData(selectedHomeID, cachedHomes[selectedHomeID]?.data);
+        }
+    }
+
+    window.goBackToSelection = function() {
+        if (window.localMqttClient) { window.localMqttClient.disconnect(); window.localMqttState = "disconnected"; }
+        document.getElementById('main-dashboard').style.display = 'none';
+        document.getElementById('home-selection-screen').style.display = 'block';
+        document.getElementById('homes-container').innerHTML = '';
+        window.systemHealth = { hubs: {}, devices: {} }; 
+    }
+
+    async function buildDashboardFromData(homeID, homeData) {
+        const container = document.getElementById('homes-container');
+        if (!homeData) { container.innerHTML = "<h3>Error loading home data.</h3>"; return; }
+
+        const activeHubID = homeData.linked_hub || homeData.hub_id;
+
+        let fullHTML = `<div class="home-section" id="home-${homeID}">
+                            <div class="home-header">
+                                <h2 class="home-title">${homeData.home_name || homeData.home_label}</h2>
+                                <span id="hub-badge-${activeHubID}" class="hub-badge">Hub: Checking...</span>
+                            </div>`;
+
+        let localRegistry = null;
+        let host = window.location.hostname;
+        if (!host || host === "" || host === "localhost") host = "jessy.local";
+        
+        try {
+            let regResponse = await fetch(`http://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
+            if (regResponse.ok) localRegistry = await regResponse.json();
+        } catch(e) {
+            const regStr = localStorage.getItem('jessy_local_registry');
+            if (regStr) localRegistry = JSON.parse(regStr);
+        }
+
+        const rooms = homeData.rooms || {};
+        for (const roomKey of Object.keys(rooms)) {
+            const devID = rooms[roomKey].dev_id;
+            const roomLabel = roomKey.replace(/_/g, ' '); 
+            
+            let devExists = false;
+            let realStat = { connection_state: "offline", master_lock: 0, user_lock: 0 };
+
+            if (navigator.onLine && typeof get !== 'undefined' && get) {
+                try {
+                    const devSnap = await get(ref(db, `cloud_passport_authority/4_device_shadows/NODES/${devID}`));
+                    const val = devSnap.val();
+                    if (val && val.status && val.status.connection_state) {
+                        devExists = true;
+                        realStat = val.status;
+                    }
+                } catch(e) {}
+            }
+            
+            if (localRegistry && localRegistry[devID] && localRegistry[devID].status && localRegistry[devID].status.connection_state) {
+                devExists = true;
+                realStat = localRegistry[devID].status;
+            }
+
+            
+			
+			
+			
+			
+			
+// 🛠️ [BUG FIX 4]: Default ஆக ஸ்விட்ச்களை Disabled ஆக்குதல் மற்றும் Checking ஸ்டேட்டஸ் காட்டுதல்
+            fullHTML += `<div class="room-title">${roomLabel}</div>
+                         <div class="device-group is-locked" id="group-${devID}">
+                            <div class="device-header">
+                                <span id="dot-${devID}" class="device-status-dot" style="background-color: #bbb;"></span>
+                                <div class="device-name">Device ID: ${devID}</div>
+                                <span id="lock-${devID}" class="status-badge" style="display:inline-block; background-color:#7f8c8d;">CHECKING...</span>
+                            </div>
+                            <div class="device-container">`;
+            if (devExists) {
+                ['r1', 'r2', 'r3', 'r4'].forEach(rID => {
+                    fullHTML += `<div class="switch-card" id="card-${devID}-${rID}">
+                                    <h3>${rID.toUpperCase()}</h3>
+                                    <label class="switch">
+                                        <input type="checkbox" disabled id="input-${devID}-${rID}" onchange="toggleRelay('${devID}','${rID}', this)">
+                                        <span class="slider"></span>
+                                    </label>
+                                 </div>`;
+                });
+            } else {
+                fullHTML += `<div class="not-found-badge">⚠️ Device configuration not found or inactive!</div>`;
+            }
+            fullHTML += `</div></div>`;
+            
+            if (devExists) {
+                if (!window.systemHealth.devices[devID]) {
+                    window.systemHealth.devices[devID] = { latestStat: realStat, hubId: activeHubID };
+                }
+            }
+        }
+        fullHTML += `</div>`;
+        container.innerHTML = fullHTML;
+
+        window.systemHealth.hubs[activeHubID] = { 
+            last_heartbeat: null, 
+            currentMode: "cloud",
+            isCloudOffline: false,
+            badgeId: `hub-badge-${activeHubID}`, 
+            homeDivId: `home-${homeID}` 
+        };
+
+        Object.values(rooms).forEach(roomData => {
+            const devID = roomData.dev_id;
+            if (localRegistry && localRegistry[devID] && localRegistry[devID].relays) {
+                setTimeout(() => {
+                    ['r1', 'r2', 'r3', 'r4'].forEach(rID => {
+                        const rData = localRegistry[devID].relays[rID];
+                        if (rData) {
+                            const input = document.getElementById(`input-${devID}-${rID}`);
+                            if (input && !input.disabled) input.checked = rData.state;
+                        }
+                    });
+                }, 100); 
+            }
+        });
+
+        try {
+            if (navigator.onLine && typeof onValue !== 'undefined' && onValue !== null) {
+                
+               
+        // 🛠️ [ULTRA-OPTIMIZED PRESENCE ENGINE: ZERO-COST CLOUD DATA]
+
+		const myUid = window.auth?.currentUser?.uid || "guest_" + Math.floor(Math.random()*1000);
+		const cloudPresenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${activeHubID}/status/active_clients/${myUid}`);
+
+		let isCloudPresenceActive = false;
+
+function manageCloudPresence() {
+            if (isLocalMode) return; 
+
+            // 🛠️ [FIX]: தனித்தனி UID-ஐ வைத்து Multi-User ட்ராக் செய்கிறோம்
+            const presenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${HUB_ID}/status/active_clients/${currentUserID}`);
+            
+            // யூசர் உள்ளே வந்தவுடன் True என்று எழுதுகிறோம்
+            set(presenceRef, true);
+            
+            // பிரவுசரை மூடினாலோ, நெட் கட் ஆனாலோ Firebase தானாகவே இந்த UID-ஐ நீக்கிவிடும் (Auto-Cleanup)
+            onDisconnect(presenceRef).remove();
+            
+            window.addEventListener('beforeunload', () => {
+                set(presenceRef, null); // Logout செய்யும்போதும் நீக்கிவிடுகிறோம்
+            });
+        }
+
+        // 1. ⏱️ Local MQTT Ping (இது 100% இலவசம் என்பதால் 5 வினாடிக்கு ஒருமுறை ஓடலாம்)
+        setInterval(() => {
+            if (window.localMqttState === "connected" && window.verifiedLocalHubId === activeHubID) {
+                try {
+                    let pingMsg = new Paho.Message(myUid);
+                    pingMsg.destinationName = `app/ping/${activeHubID}`;
+                    pingMsg.qos = 0;
+                    window.localMqttClient.send(pingMsg);
+                } catch(e){}
+            }
+            manageCloudPresence(); // State-ஐ செக் செய்யும், ஆனால் மாற்றம் இருந்தால் மட்டுமே Firebase-ல் எழுதும்
+        }, 5000);
+
+        // 2. 📱 Tab Visibility Event (பேட்டரி & டேட்டா மிச்சப்படுத்த)
+        // யூசர் ஆப்பை விட்டு வெளியே சென்றாலோ (Minimise) அல்லது திரையை மூடினாலோ உடனடியாக Cloud Presence-ஐ துண்டித்துவிடும்
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "hidden") {
+                if (isCloudPresenceActive && typeof set !== 'undefined') {
+                    set(cloudPresenceRef, null).catch(()=>{});
+                    isCloudPresenceActive = false;
+                    console.log("💤 App Minimized. Cloud Presence REMOVED.");
+                }
+            } else if (document.visibilityState === "visible") {
+                manageCloudPresence(); // ஆப்பை மீண்டும் திறந்தால் நிலைமையைப் பொறுத்து அப்டேட் செய்யும்
+            }
+        });
+
+                onValue(ref(db, `cloud_passport_authority/4_device_shadows/HUBS/${activeHubID}/status`), (s) => {
+                    const stat = s.val();
+                    if(stat && stat.last_heartbeat) window.systemHealth.hubs[activeHubID].last_heartbeat = stat.last_heartbeat;
+                });
+
+                Object.values(rooms).forEach(roomData => {
+                    const devID = roomData.dev_id;
+                    if (!window.systemHealth.devices[devID]) return; 
+
+                    onValue(ref(db, `cloud_passport_authority/4_device_shadows/NODES/${devID}/status`), (snap) => {
+                        const stat = snap.val();
+                        if(stat) { window.systemHealth.devices[devID].latestStat = stat; updateDeviceUI(devID); }
+                    });
+
+                    ['r1', 'r2', 'r3', 'r4'].forEach(rID => {
+                        onValue(ref(db, `cloud_passport_authority/4_device_shadows/NODES/${devID}/relays/${rID}`), (snap) => {
+                            const rData = snap.val();
+                            if(rData) {
+                                const input = document.getElementById(`input-${devID}-${rID}`);
+                                const card = document.getElementById(`card-${devID}-${rID}`);
+                                if (input && !input.disabled && (!card || !card.classList.contains('processing'))) {
+                                    input.checked = rData.state;
+                                }
+                            }
+                        });
+                    });
+                });
+            }
+        } catch (e) { console.log("Firebase listener error bypassed."); }
+    }
+// --- [BLOCK C6: BUILD DASHBOARD & SELECTION] END ---
+
+// --- [BLOCK C7: TOGGLE RELAY COMMAND] START ---
+    window.toggleRelay = function(devID, relayID, inputEl) {
+        const card = inputEl.closest('.switch-card') || document.getElementById(`card-${devID}-${relayID}`);
+        const desiredState = inputEl.checked;
+        
+        // 1. Passport Verification
+        const userPassport = localStorage.getItem('jessy_user_passport');
+        if (!userPassport || userPassport === "NO_PASS") {
+            alert("🔒 Security Lock: உங்களின் User Passport கிடைக்கவில்லை!");
+            inputEl.checked = !desiredState; 
+            return;
+        }
+
+        if(card) card.classList.add('processing'); 
+        const reqId = new Date().getTime().toString(); 
+
+        const devData = window.systemHealth?.devices?.[devID];
+        const hub = window.systemHealth?.hubs?.[devData?.hubId];
+        if (!devData || !hub) { 
+            if(card) card.classList.remove('processing'); 
+            inputEl.checked = !desiredState; 
+            return; 
+        }
+
+        // 2. 🔐 Math Hash Signature (Zero-Knowledge)
+        const valStr = desiredState ? "1" : "0";
+        let m = 0;
+        for(let i = 0; i < userPassport.length; i++) {
+            m = (m * 31 + userPassport.charCodeAt(i)) % 1000000;
+        }
+        const r = parseInt(reqId.slice(-8)) || 0; 
+        const signature = ((m * 9301 + r * 49297) % 233280).toString(16); 
+        
+        // 3. 🌐 [CRITICAL FIX]: Cloud மற்றும் Local இரண்டிற்கும் இதுவே Payload! (பாஸ்போர்ட் மறைக்கப்பட்டது)
+        const standardPayload = `${valStr}|${reqId}|${signature}`;
+
+        if (window.localMqttState === "connected" && window.verifiedLocalHubId === devData.hubId) {
+            // 🚀 Local MQTT
+            try {
+                let message = new Paho.Message(standardPayload);
+                message.destinationName = `app/cmd/${devID}/${relayID}`;
+                message.qos = 0; 
+                message.retained = false; 
+                window.localMqttClient.send(message);
+                
+                setTimeout(() => { 
+                   if(card && card.classList.contains('processing')) {
+                       card.classList.remove('processing'); 
+                       inputEl.checked = !desiredState; 
+                   }
+                }, 6000);
+            } catch (err) {
+                alert("Local Command Failed.");
+                inputEl.checked = !desiredState; 
+                if(card) card.classList.remove('processing');
+            }
+        } else {
+            // ☁️ Firebase Cloud
+            if (!navigator.onLine || typeof window.db === 'undefined' || typeof set === 'undefined') {
+                alert("📴 Offline: Network disconnected.");
+                inputEl.checked = !desiredState; 
+                if(card) card.classList.remove('processing');
+                return;
+            }
+            
+            const path = `cloud_passport_authority/4_device_shadows/NODES/${devID}/relays/${relayID}/cmd_trigger`;
+            
+            // 🛠️ [CRITICAL FIX]: standardPayload-ஐ மட்டுமே Firebase-க்கு அனுப்புகிறோம்
+            set(ref(window.db, path), standardPayload)
+                .then(() => { 
+                    setTimeout(() => { if(card) card.classList.remove('processing'); }, 800); 
+                })
+                .catch((err) => {
+                    alert("Cloud Command Failed: " + err.message);
+                    if(card) card.classList.remove('processing'); 
+                    inputEl.checked = !desiredState;
+                });
+        }
+    };
+// --- [BLOCK C7: TOGGLE RELAY COMMAND] END ---
+
+</script>
+</body>
+</html>
