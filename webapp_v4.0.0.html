@@ -6,6 +6,13 @@
     <title>JESSY Smart Home - Dashboard v4.0.0</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+
+    <script>
+        if (typeof Paho === 'undefined') {
+            console.log("🔌 No Internet / CDN Failed. Loading Local MQTT Library...");
+            document.write('<script src=".jessy_sys/paho-mqtt.min.js"><\/script>');
+        }
+    </script>
 	
     <style>
       /* --- [BLOCK C0: CSS STYLES] START --- */
@@ -144,11 +151,17 @@
     }
 
     async function discoverLocalHub() {
+        // 🛠️ [DUAL MODE FIX]: GitHub-ல் (HTTPS) இயங்கினால் லோக்கல் ஐபியைத் தேடக் கூடாது!
+        if (window.location.protocol === 'https:') {
+            window.verifiedLocalHubId = null;
+            return;
+        }
+
         try {
             let host = window.location.hostname;
             if (!host || host === "" || host === "localhost") host = "jessy.local";
             
-            let res = await fetch(`https://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(2000) });
+            let res = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(2000) });
             if (res.ok) {
                 let data = await res.json();
                 // 🛠️ [JSON STRUCTURE FIX]: Handle v4.0 Nested JSON
@@ -230,7 +243,7 @@
                 try {
                     let host = window.location.hostname;
                     if (!host || host === "" || host === "localhost") host = "jessy.local";
-                    let res = await fetch(`https://${host}:8080/1_passport_cache.json`);
+                    let res = await fetch(`http://${host}:8080/1_passport_cache.json`);
                     if (res.ok) {
                         let data = await res.json();
                         let devicesNode = data.cloud_passport_authority?.["3_device_passports"] || {};
@@ -488,9 +501,21 @@
         let completeCache = {}; 
         let localHubEmpty = false;
 
-        // 1. 🏠 [LOCAL FIRST]: முதலில் லோக்கல் நெட்வொர்க்கில் தேடுதல்
+        
+		// 1. 🏠 [LOCAL FIRST]: முதலில் லோக்கல் நெட்வொர்க்கில் தேடுதல்
+        if (window.location.protocol !== 'https:') {
+            try {
+                let hubResponse = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
+                // ... (உள்ளே இருக்கும் பழைய குறியீடு அப்படியே இருக்கட்டும்) ...
+            } catch (err) {
+                console.log("⚠️ Local Hub not reachable. Relying on Cloud.");
+            }
+        } else {
+            console.log("🌐 Cloud Hosted (HTTPS). Skipping Local Search.");
+        }
+		
         try {
-            let hubResponse = await fetch(`https://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
+            let hubResponse = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
             if (hubResponse.ok) {
                 let data = await hubResponse.json();
                 let homesList = data.cloud_passport_authority?.["2_smart_home_passports"] || data;
@@ -512,7 +537,7 @@
 
                     // Local Registry Sync
                     try {
-                        let regResponse = await fetch(`https://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
+                        let regResponse = await fetch(`http://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
                         if (regResponse.ok) {
                             localStorage.setItem('jessy_local_registry', JSON.stringify(await regResponse.json()));
                         }
@@ -524,7 +549,7 @@
         }
 
         // 2. ☁️ [CLOUD SYNC]: ஆன்லைனில் இருந்தால், கிளவுட் வீடுகளையும் சேர்த்துக்கொள்ளுதல்
-		
+
         if (navigator.onLine && typeof get !== 'undefined' && get && window.auth && window.auth.currentUser) {
             try {
                 // 🛠️ [NEW FIX]: uData இல்லையென்றால் கிளவுடில் இருந்து நாமே எடுத்துக்கொள்வோம்
@@ -618,12 +643,15 @@
         let host = window.location.hostname;
         if (!host || host === "" || host === "localhost") host = "jessy.local";
         
-        try {
-            let regResponse = await fetch(`https://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
-            if (regResponse.ok) localRegistry = await regResponse.json();
-        } catch(e) {
-            const regStr = localStorage.getItem('jessy_local_registry');
-            if (regStr) localRegistry = JSON.parse(regStr);
+        // 🛠️ [DUAL MODE FIX]: HTTPS-ல் இருந்தால் HTTP ரெக்வெஸ்ட் கொடுத்து Mixed Content எரர் வாங்கக் கூடாது.
+        if (window.location.protocol !== 'https:') {
+            try {
+                let regResponse = await fetch(`http://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
+                if (regResponse.ok) localRegistry = await regResponse.json();
+            } catch(e) {
+                const regStr = localStorage.getItem('jessy_local_registry');
+                if (regStr) localRegistry = JSON.parse(regStr);
+            }
         }
 
         const rooms = homeData.rooms || {};
@@ -739,7 +767,8 @@ function manageCloudPresence() {
             window.addEventListener('beforeunload', () => {
                 set(presenceRef, null); // Logout செய்யும்போதும் நீக்கிவிடுகிறோம்
             });
-        }
+        }    
+
 
         // 1. ⏱️ Local MQTT Ping (இது 100% இலவசம் என்பதால் 5 வினாடிக்கு ஒருமுறை ஓடலாம்)
         setInterval(() => {
