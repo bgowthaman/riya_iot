@@ -723,11 +723,11 @@
 		let isCloudPresenceActive = false;
 
 function manageCloudPresence() {
-           // 🛠️ [FIX]: window.isLocalMode என Global வேரியபிளை செக் செய்கிறோம்
-            if (window.isLocalMode) return;
-
-            // 🛠️ [FIX]: தனித்தனி UID-ஐ வைத்து Multi-User ட்ராக் செய்கிறோம்
-            const presenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${window.HUB_ID}/status/active_clients/${currentUserID}`);
+            // 🛠️ [FIX]: லோக்கல் நெட்வொர்க்கில் இருந்தால் Cloud-க்கு சிக்னல் அனுப்பத் தேவையில்லை
+            if (window.verifiedLocalHubId !== null) return;
+            
+            // 🛠️ [CRITICAL BUG FIX]: தவறான பெயர்களுக்குப் பதிலாக, சரியான 'activeHubID' மற்றும் 'myUid' ஐப் பயன்படுத்துகிறோம்!
+            const presenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${activeHubID}/status/active_clients/${myUid}`);
             
             // யூசர் உள்ளே வந்தவுடன் True என்று எழுதுகிறோம்
             set(presenceRef, true);
