@@ -524,11 +524,6 @@
         }
 
         // 2. ☁️ [CLOUD SYNC]: ஆன்லைனில் இருந்தால், கிளவுட் வீடுகளையும் சேர்த்துக்கொள்ளுதல்
-		if (window.location.protocol === 'https:') {
-                console.log("🌐 Running on https (Cloud Hosted). Forcing Cloud Mode.");
-                initCloudMode();
-                return;
-            }
 		
         if (navigator.onLine && typeof get !== 'undefined' && get && window.auth && window.auth.currentUser) {
             try {
