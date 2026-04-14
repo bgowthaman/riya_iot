@@ -723,7 +723,8 @@
 		let isCloudPresenceActive = false;
 
 function manageCloudPresence() {
-            if (isLocalMode) return; 
+           // 🛠️ [FIX]: window.isLocalMode என Global வேரியபிளை செக் செய்கிறோம்
+            if (window.isLocalMode) return;
 
             // 🛠️ [FIX]: தனித்தனி UID-ஐ வைத்து Multi-User ட்ராக் செய்கிறோம்
             const presenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${HUB_ID}/status/active_clients/${currentUserID}`);
