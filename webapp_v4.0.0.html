@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JESSY Smart Home - Dashboard v4.0.0</title>
     
-    <script src=".jessy_sys/paho-mqtt.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
 	
     <style>
       /* --- [BLOCK C0: CSS STYLES] START --- */
@@ -727,7 +727,7 @@ function manageCloudPresence() {
             if (window.isLocalMode) return;
 
             // 🛠️ [FIX]: தனித்தனி UID-ஐ வைத்து Multi-User ட்ராக் செய்கிறோம்
-            const presenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${HUB_ID}/status/active_clients/${currentUserID}`);
+            const presenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${window.HUB_ID}/status/active_clients/${currentUserID}`);
             
             // யூசர் உள்ளே வந்தவுடன் True என்று எழுதுகிறோம்
             set(presenceRef, true);
