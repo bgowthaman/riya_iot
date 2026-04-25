@@ -738,34 +738,46 @@
             if (navigator.onLine && typeof onValue !== 'undefined' && onValue !== null) {
                 
                
-        // 🛠️ [ULTRA-OPTIMIZED PRESENCE ENGINE: ZERO-COST CLOUD DATA]
+        // ==============================================================================
+        // 🛠️ [ULTRA-OPTIMIZED PRESENCE ENGINE: ZERO-COST CLOUD DATA & MEMORY LEAK FIX]
+        // ==============================================================================
 
-		const myUid = window.auth?.currentUser?.uid || "guest_" + Math.floor(Math.random()*1000);
-		const cloudPresenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${activeHubID}/status/active_clients/${myUid}`);
+        // 1. 🛑 பழைய டைமர் லூப்பை நிறுத்துதல் (Duplicate Loop Fix)
+        // Dashboard பல முறை லோட் ஆனாலும், பழைய டைமரை அழித்துவிட்டு புதிதாக ஒன்றை மட்டுமே ஓடச் செய்யும்
+        if (window.presenceInterval) clearInterval(window.presenceInterval);
 
-		let isCloudPresenceActive = false;
+        // 2. 🆔 யூசர் அடையாளம் காணுதல்
+        // Firebase Auth-ல் இருந்து UID-ஐ எடுக்கும், இல்லையென்றால் ரேண்டம் Guest ID-ஐ உருவாக்கும்
+        const myUid = window.auth?.currentUser?.uid || "guest_" + Math.floor(Math.random()*1000);
+        
+        // Firebase டேட்டாபேஸில் இந்த யூசருக்கான பாதை (Path)
+        const cloudPresenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${activeHubID}/status/active_clients/${myUid}`);
 
-function manageCloudPresence() {
-            // 🛠️ [FIX]: லோக்கல் நெட்வொர்க்கில் இருந்தால் Cloud-க்கு சிக்னல் அனுப்பத் தேவையில்லை
+        let isCloudPresenceActive = false; // தற்போது கிளவுடில் யூசர் ஆக்டிவாக உள்ளாரா என்பதைச் சேமிக்க
+        
+        // 3. ☁️ கிளவுடில் யூசரின் இருப்பைப் பதிவு செய்யும் ஃபங்ஷன் (Arrow Function)
+        const manageCloudPresence = () => {
+            // லோக்கல் நெட்வொர்க்கில் (Local Hub) இருந்தால் கிளவுடுக்கு டேட்டா அனுப்பக் கூடாது (Zero-Cost)
             if (window.verifiedLocalHubId !== null) return;
             
-            // 🛠️ [CRITICAL BUG FIX]: தவறான பெயர்களுக்குப் பதிலாக, சரியான 'activeHubID' மற்றும் 'myUid' ஐப் பயன்படுத்துகிறோம்!
             const presenceRef = ref(window.db, `cloud_passport_authority/4_device_shadows/HUBS/${activeHubID}/status/active_clients/${myUid}`);
             
-            // யூசர் உள்ளே வந்தவுடன் True என்று எழுதுகிறோம்
+            // யூசர் உள்ளே வந்துவிட்டதால் 'true' என எழுதுகிறோம்
             set(presenceRef, true);
+            isCloudPresenceActive = true;
             
-            // பிரவுசரை மூடினாலோ, நெட் கட் ஆனாலோ Firebase தானாகவே இந்த UID-ஐ நீக்கிவிடும் (Auto-Cleanup)
+            // இன்டர்நெட் கட் ஆனாலோ, பிரவுசர் க்ராஷ் ஆனாலோ Firebase தானாகவே இதை அழித்துவிடும் (Auto-Cleanup)
             onDisconnect(presenceRef).remove();
             
-            window.addEventListener('beforeunload', () => {
-                set(presenceRef, null); // Logout செய்யும்போதும் நீக்கிவிடுகிறோம்
-            });
-        }    
+            // யூசர் பிரவுசர் டேப்பை மூடும்போது (Close Tab) பாதுகாப்பாகத் தரவை அழித்துவிட்டு வெளியேற
+            window.onbeforeunload = () => {
+                set(presenceRef, null);
+            };
+        };
 
-
-        // 1. ⏱️ Local MQTT Ping (இது 100% இலவசம் என்பதால் 5 வினாடிக்கு ஒருமுறை ஓடலாம்)
-        setInterval(() => {
+        // 4. ⏱️ 5 வினாடிகளுக்கு ஒருமுறை செயல்படும் லூப் (Local Ping & Cloud Check)
+        window.presenceInterval = setInterval(() => {
+            // Local MQTT இணைக்கப்பட்டு, சரியான வீட்டில் இருந்தால் மட்டும் லோக்கல் Ping அனுப்பும்
             if (window.localMqttState === "connected" && window.verifiedLocalHubId === activeHubID) {
                 try {
                     let pingMsg = new Paho.Message(myUid);
@@ -774,22 +786,30 @@ function manageCloudPresence() {
                     window.localMqttClient.send(pingMsg);
                 } catch(e){}
             }
-            manageCloudPresence(); // State-ஐ செக் செய்யும், ஆனால் மாற்றம் இருந்தால் மட்டுமே Firebase-ல் எழுதும்
+            // லோக்கலில் இல்லை என்றால் Cloud-ல் யூசர் இருப்பதை உறுதி செய்யும்
+            manageCloudPresence(); 
         }, 5000);
 
-        // 2. 📱 Tab Visibility Event (பேட்டரி & டேட்டா மிச்சப்படுத்த)
-        // யூசர் ஆப்பை விட்டு வெளியே சென்றாலோ (Minimise) அல்லது திரையை மூடினாலோ உடனடியாக Cloud Presence-ஐ துண்டித்துவிடும்
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "hidden") {
-                if (isCloudPresenceActive && typeof set !== 'undefined') {
-                    set(cloudPresenceRef, null).catch(()=>{});
-                    isCloudPresenceActive = false;
-                    console.log("💤 App Minimized. Cloud Presence REMOVED.");
+        // 5. 📱 ஆப் திரையில் உள்ளதா எனக் கண்காணிக்கும் Event (Duplicate Event Fix)
+        // window.hasVisibilityListener மூலம் இந்த Event ஒருமுறை மட்டுமே Add ஆவதை உறுதி செய்கிறோம்
+        if (!window.hasVisibilityListener) {
+            document.addEventListener("visibilitychange", () => {
+                
+                // யூசர் ஆப்பை விட்டு வெளியே சென்றால் (Minimize செய்தாலோ அல்லது வேறு Tab சென்றாலோ)
+                if (document.visibilityState === "hidden") {
+                    if (isCloudPresenceActive && typeof set !== 'undefined') {
+                        set(cloudPresenceRef, null).catch(()=>{}); // கிளவுடில் இருந்து நீக்குதல்
+                        isCloudPresenceActive = false;
+                        console.log("💤 App Minimized. Cloud Presence REMOVED.");
+                    }
+                } 
+                // யூசர் மீண்டும் ஆப்பிற்குள் வந்தால்
+                else if (document.visibilityState === "visible") {
+                    manageCloudPresence(); // மீண்டும் கிளவுடில் பதிவு செய்தல்
                 }
-            } else if (document.visibilityState === "visible") {
-                manageCloudPresence(); // ஆப்பை மீண்டும் திறந்தால் நிலைமையைப் பொறுத்து அப்டேட் செய்யும்
-            }
-        });
+            });
+            window.hasVisibilityListener = true; // Event வெற்றிகரமாகச் சேர்க்கப்பட்டுவிட்டது எனக் குறித்தல்
+        }
 
                 onValue(ref(db, `cloud_passport_authority/4_device_shadows/HUBS/${activeHubID}/status`), (s) => {
                     const stat = s.val();
