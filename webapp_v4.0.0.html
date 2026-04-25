@@ -504,48 +504,42 @@
         
 		// 1. 🏠 [LOCAL FIRST]: முதலில் லோக்கல் நெட்வொர்க்கில் தேடுதல்
         if (window.location.protocol !== 'https:') {
-            try {
-                let hubResponse = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
-                // ... (உள்ளே இருக்கும் பழைய குறியீடு அப்படியே இருக்கட்டும்) ...
-            } catch (err) {
-                console.log("⚠️ Local Hub not reachable. Relying on Cloud.");
-            }
-        } else {
-            console.log("🌐 Cloud Hosted (HTTPS). Skipping Local Search.");
-        }
-		
-        try {
-            let hubResponse = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
-            if (hubResponse.ok) {
-                let data = await hubResponse.json();
-                let homesList = data.cloud_passport_authority?.["2_smart_home_passports"] || data;
-                
-                if (!homesList || Object.keys(homesList).length === 0) {
-                    localHubEmpty = true;
-                    container.innerHTML = `
-                        <div style="background: #fef9e7; color: #f39c12; padding: 15px; border-radius: 10px; border: 2px dashed #f39c12; margin-bottom: 20px; text-align: center;">
-                            <h3 style="margin-top:0;">⚙️ Unconfigured Local Hub Detected!</h3>
-                            <p style="font-size:0.9rem;">This Hub is running in <b>OEM Mode</b>. Use Cloud App to configure.</p>
-                        </div>
-                    `;
-                } else {
-                    for (let homeID in homesList) {
-                        completeCache[homeID] = { label: homesList[homeID].home_name || homeID, data: homesList[homeID], source: "LOCAL" };
-                        window.verifiedLocalHubId = homesList[homeID].linked_hub || homesList[homeID].hub_id; 
-                    }
-                    localStorage.setItem('jessy_local_hub_id', window.verifiedLocalHubId || "");
+			try {
+				let hubResponse = await fetch(`http://${host}:8080/1_passport_cache.json`, { cache: "no-store", signal: AbortSignal.timeout(1500) });
+				if (hubResponse.ok) {
+					let data = await hubResponse.json();
+					let homesList = data.cloud_passport_authority?.["2_smart_home_passports"] || data;
+					
+					if (!homesList || Object.keys(homesList).length === 0) {
+						localHubEmpty = true;
+						container.innerHTML = `
+							<div style="background: #fef9e7; color: #f39c12; padding: 15px; border-radius: 10px; border: 2px dashed #f39c12; margin-bottom: 20px; text-align: center;">
+								<h3 style="margin-top:0;">⚙️ Unconfigured Local Hub Detected!</h3>
+								<p style="font-size:0.9rem;">This Hub is running in <b>OEM Mode</b>. Use Cloud App to configure.</p>
+							</div>
+						`;
+					} else {
+						for (let homeID in homesList) {
+							completeCache[homeID] = { label: homesList[homeID].home_name || homeID, data: homesList[homeID], source: "LOCAL" };
+							window.verifiedLocalHubId = homesList[homeID].linked_hub || homesList[homeID].hub_id; 
+						}
+						localStorage.setItem('jessy_local_hub_id', window.verifiedLocalHubId || "");
 
-                    // Local Registry Sync
-                    try {
-                        let regResponse = await fetch(`http://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
-                        if (regResponse.ok) {
-                            localStorage.setItem('jessy_local_registry', JSON.stringify(await regResponse.json()));
-                        }
-                    } catch(e) {}
-                }
-            }
-        } catch (err) {
-            console.log("⚠️ Local Hub not reachable. Relying on Cloud.");
+						// Local Registry Sync
+						try {
+							let regResponse = await fetch(`http://${host}:8080/2_device_shadow.json`, { cache: "no-store", signal: AbortSignal.timeout(1000) });
+							if (regResponse.ok) {
+								localStorage.setItem('jessy_local_registry', JSON.stringify(await regResponse.json()));
+							}
+						} catch(e) {}
+					}
+				}
+			} catch (err) {
+				console.log("⚠️ Local Hub not reachable. Relying on Cloud.");
+			}
+		
+		} else {
+            console.log("🌐 Cloud Hosted (HTTPS). Skipping Local Search.");
         }
 
         // 2. ☁️ [CLOUD SYNC]: ஆன்லைனில் இருந்தால், கிளவுட் வீடுகளையும் சேர்த்துக்கொள்ளுதல்
