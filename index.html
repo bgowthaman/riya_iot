@@ -252,44 +252,46 @@ KNOWN ISSUE:
                 let receivedSignature = payloadParts[2];
                 let state = (valStr === "1");
 
-                // 1. Fetch Hub Passport from cache for signature verification
-                let hubPassport = "UNKNOWN_HUB_PASS";
-				try {
-					let host = window.location.hostname;
-					if (!host || host === "" || host === "localhost") host = "jessy.local";
-					let res = await fetch(`http://${host}:8080/1_passport_cache.json`);
-					if (res.ok) {
-						let data = await res.json();
-						// Always pick the first home's linked hub ID (same logic as discoverLocalHub)
-						let homesList = data.cloud_passport_authority?.["2_smart_home_passports"] || data;
-						let firstHome = Object.values(homesList)[0];
-						let hubID = (firstHome?.linked_hub || firstHome?.hub_id) || null;
-						if (hubID) {
-							let devicesNode = data.cloud_passport_authority?.["3_device_passports"] || {};
-							if (devicesNode[hubID]) {
-								hubPassport = devicesNode[hubID].passport_id;
-							}
-						}
-					}
-				} catch(e) { console.log("Failed to fetch Hub Passport for verification.", e); }
+// --- Replace from "let hubPassport = ..." to the signature verification with this block ---
+let hubPassport = "UNKNOWN_HUB_PASS";
+try {
+    let host = window.location.hostname;
+    if (!host || host === "" || host === "localhost") host = "jessy.local";
+    let res = await fetch(`http://${host}:8080/1_passport_cache.json`);
+    if (res.ok) {
+        let data = await res.json();
+        let homesList = data.cloud_passport_authority?.["2_smart_home_passports"] || data;
+        let firstHome = Object.values(homesList)[0];
+        let hubID = (firstHome?.linked_hub || firstHome?.hub_id) || null;
+        if (hubID) {
+            let devicesNode = data.cloud_passport_authority?.["3_device_passports"] || {};
+            if (devicesNode[hubID]) {
+                hubPassport = devicesNode[hubID].passport_id;
+            }
+        }
+    }
+} catch(e) { console.log("Failed to fetch Hub Passport for verification.", e); }
 
-                // 2. Compute expected signature
-                let m = 0;
-                for(let i = 0; i < hubPassport.length; i++) {
-                    m = (m * 31 + hubPassport.charCodeAt(i)) % 1000000;
-                }
-                const r = parseInt(reqId.slice(-8)) || 0;
-                const expectedSignature = ((m * 9301 + r * 49297) % 233280).toString(16);
+// Compute signature once (no duplicate declarations)
+let m = 0;
+for (let i = 0; i < hubPassport.length; i++) {
+    m = (m * 31 + hubPassport.charCodeAt(i)) % 1000000;
+}
+const r = parseInt(reqId.slice(-8)) || 0;
+const expectedSignature = ((m * 9301 + r * 49297) % 233280).toString(16);
 
-                // 3. Verify and update UI
-                if (receivedSignature === expectedSignature) {
-                    const input = document.getElementById(`input-${devID}-${relayID}`);
-                    const card = document.getElementById(`card-${devID}-${relayID}`);
-                    if(input) input.checked = state;
-                    if(card) card.classList.remove('processing');
-                } else {
-                    console.warn(`🚨 FAKE FEEDBACK BLOCKED! Signature Mismatch for ${devID}/${relayID}`);
-                }
+// DEBUG (uses the same 'm', 'r' computed above)
+console.log('DEBUG fb:', { hubPassport, reqId, receivedSignature, expected: expectedSignature });
+
+// Verification (unchanged)
+if (receivedSignature === expectedSignature) {
+    const input = document.getElementById(`input-${devID}-${relayID}`);
+    const card = document.getElementById(`card-${devID}-${relayID}`);
+    if(input) input.checked = state;
+    if(card) card.classList.remove('processing');
+} else {
+    console.warn(`🚨 FAKE FEEDBACK BLOCKED! Signature Mismatch for ${devID}/${relayID}`);
+}
             }
         };
 		
